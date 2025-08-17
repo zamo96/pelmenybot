@@ -1,68 +1,128 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+/* базовое поведение на iOS */
+html, body, #root { height: 100%; }
+html { -webkit-text-size-adjust: 100%; }
+body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+/* Safe-area для iPhone */
+@supports(padding: max(0px)) {
+  .safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
+
+/* фоновый градиент */
+@keyframes gradMove {
+  0% { transform: translate3d(-10%, -10%, 0) scale(1.1); }
+  50% { transform: translate3d(10%, 10%, 0) scale(1.1); }
+  100% { transform: translate3d(-10%, -10%, 0) scale(1.1); }
+}
+.animate-grad-slow { animation: gradMove 20s ease-in-out infinite; }
+
+/* лёгкий шум/зерно */
+.noise-mask::before {
+  content: "";
+  position: absolute; inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: .6;
+}
+
+/* тонкая сетка-свечение */
+.grid-glow {
+  background-image:
+    radial-gradient(ellipse at center, rgba(255,255,255,.06), transparent 40%),
+    linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 100% 100%, 38px 38px, 38px 38px;
+  background-position: center, 0 0, 0 0;
+  mask-image: radial-gradient(circle at 50% 40%, #000 40%, transparent 75%);
+}
+
+/* анимации пельменя и частиц */
+@keyframes idleBob {
+  0% { transform: translateZ(0) translateY(0); }
+  50% { transform: translateZ(0) translateY(-6px); }
+  100% { transform: translateZ(0) translateY(0); }
+}
+.pelmeni-idle { animation: idleBob 2s ease-in-out infinite; will-change: transform; }
+
+@keyframes squish {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.92, 0.88); }
+  100% { transform: scale(1); }
+}
+.pelmeni-squish { animation: squish 160ms cubic-bezier(.2,.9,.2,1) both; }
+
+@keyframes rise {
+  from { opacity: 1; transform: translate(var(--x,0), var(--y,0)) translateY(0); }
+  to   { opacity: 0; transform: translate(var(--x,0), var(--y,0)) translateY(-60px); }
+}
+.floater { animation: rise .9s ease-out both; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+
+@keyframes burst {
+  0%   { opacity: 1; transform: translate(0,0) scale(.9) rotate(0deg); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(1.15) rotate(360deg); }
+}
+.pelmeni-particle {
+  position: absolute;
+  animation: burst .7s ease-out forwards;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,.25));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pelmeni-idle, .pelmeni-squish, .floater, .pelmeni-particle, .animate-grad-slow { animation: none !important; }
+}
+/* ===== Пельменный паттерн + градиент поверх ===== */
+.bg-pelmeni {
+  /* маленький SVG-паттерн пельменя (64×64) */
+  --tile: url("data:image/svg+xml;utf8,\
+  <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'>\
+    <defs>\
+      <radialGradient id='g' cx='32' cy='32' r='28' gradientUnits='userSpaceOnUse'>\
+        <stop offset='0' stop-color='%23f9eacb'/>\
+        <stop offset='1' stop-color='%23f0dbaf'/>\
+      </radialGradient>\
+    </defs>\
+    <rect width='64' height='64' fill='none'/>\
+    <g transform='translate(8,8)'>\
+      <circle cx='24' cy='24' r='22' fill='url(%23g)'/>\
+      <path d='M4 24 C12 18, 36 18, 44 24' fill='none' stroke='%23e1cfa6' stroke-width='3'/>\
+      <path d='M8 29 C16 24, 32 24, 40 29' fill='none' stroke='%23e1cfa6' stroke-width='3'/>\
+      <circle cx='16' cy='18' r='4' fill='%23fff' opacity='.6'/>\
+    </g>\
+  </svg>");
+  background-image: var(--tile);
+  background-size: 72px 72px;      /* плотность паттерна */
+  background-repeat: repeat;
+}
+
+.bg-overlay {
+  background: radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.08), transparent 60%),
+              linear-gradient(180deg, rgba(13,20,40,0.6), rgba(13,20,40,0.9));
+}
+
+/* карточки «гласс» */
+.card {
+  backdrop-filter: blur(14px);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+}
+
+/* крупная типографика */
+.h-title { font-size: clamp(28px, 4vw, 42px); font-weight: 800; letter-spacing: -0.02em; }
+
+/* упругая анимация при тапе остаётся прежней (если добавлял раньше) */

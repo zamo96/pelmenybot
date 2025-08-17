@@ -1,97 +1,121 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-// --- Types
+// ---------------- Types / Save ----------------
 type SaveState = {
-  pelmeni: number; // total tiny pelmeni (score)
-  perTap: number; // how many tiny pelmeni per tap
-  perSecond: number; // passive income per second
+  pelmeni: number;
+  perTap: number;
+  perSecond: number;
   totalTaps: number;
   createdAt: number;
 };
 
-const SAVE_KEY = "pelmeni-save-v1";
+const SAVE_KEY = "pelmeni-save-v2";
 
-// Utility: load/save
 function loadState(): SaveState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
-
-function saveState(state: SaveState) {
+function saveState(s: SaveState) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(s));
   } catch {}
 }
+const fmt = (n: number) => Intl.NumberFormat().format(Math.floor(n));
 
-// Simple number formatter
-function fmt(n: number) {
-  return Intl.NumberFormat().format(Math.floor(n));
+// ---------------- Floaters (+N) ----------------
+function useFloaters() {
+  const [floaters, setFloaters] = useState<Array<{ id: number; x: number; y: number; text: string }>>([]);
+  const idRef = useRef(0);
+  const add = (x: number, y: number, text: string) => {
+    const id = ++idRef.current;
+    setFloaters((f) => [...f, { id, x, y, text }]);
+    setTimeout(() => setFloaters((f) => f.filter((i) => i.id !== id)), 900);
+  };
+  return { floaters, add };
 }
 
-// Cute dumpling SVG component
-function BigPelmeni({ onTap }: { onTap: () => void }) {
+// ---------------- Particles (mini pelmeni) ----------------
+type Particle = { id: number; x: number; y: number; tx: number; ty: number; rot: number };
+
+function useParticles() {
+  const [parts, setParts] = useState<Particle[]>([]);
+  const idRef = useRef(0);
+
+  const burst = (cx: number, cy: number, count = 12) => {
+    const items: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      const ang = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const dist = 60 + Math.random() * 40;
+      items.push({
+        id: ++idRef.current,
+        x: cx,
+        y: cy,
+        tx: Math.cos(ang) * dist,
+        ty: Math.sin(ang) * dist * (0.6 + Math.random() * 0.7),
+        rot: (Math.random() - 0.5) * 360,
+      });
+    }
+    setParts((p) => [...p, ...items]);
+    setTimeout(() => {
+      const ids = new Set(items.map((i) => i.id));
+      setParts((p) => p.filter((i) => !ids.has(i.id)));
+    }, 750);
+  };
+
+  return { parts, burst };
+}
+
+function BigPelmeni({
+  onTap,
+  squish = false,
+  size = 360, // можно 420 на десктопе
+}: {
+  onTap: (e?: React.MouseEvent) => void;
+  squish?: boolean;
+  size?: number;
+}): JSX.Element {
   return (
     <button
       onClick={onTap}
-      className="relative mx-auto block h-64 w-64 select-none rounded-full transition-transform active:scale-95"
+      className={`relative mx-auto block select-none rounded-full active:scale-[.985]
+                  pelmeni-idle ${squish ? "pelmeni-squish" : ""}`}
+      style={{ width: size, height: size, transform: "translateZ(0)" }}
       aria-label="Tap the pelmeni"
       title="Tap!"
     >
-      <svg viewBox="0 0 300 300" className="h-full w-full drop-shadow-xl">
-        {/* shadow */}
-        <ellipse cx="150" cy="205" rx="110" ry="25" fill="#d9d9d9" opacity="0.6" />
-        {/* base */}
-        <circle cx="150" cy="150" r="110" fill="#f7e7c6" />
-        {/* folds */}
-        <path d="M40 150 C80 120, 220 120, 260 150" fill="none" stroke="#e1cfa6" strokeWidth="10" />
-        <path d="M60 180 C110 150, 190 150, 240 180" fill="none" stroke="#e1cfa6" strokeWidth="10" />
-        {/* highlight */}
-        <circle cx="110" cy="120" r="20" fill="#fff" opacity="0.6" />
-        {/* face */}
-        <circle cx="120" cy="160" r="8" fill="#333" />
-        <circle cx="180" cy="160" r="8" fill="#333" />
-        <path d="M130 180 Q150 195 170 180" stroke="#333" strokeWidth="6" fill="none" strokeLinecap="round" />
+      <svg viewBox="0 0 300 300" className="h-full w-full drop-shadow-[0_18px_30px_rgba(0,0,0,.35)]">
+        <ellipse cx="150" cy="210" rx="120" ry="28" fill="#000" opacity="0.12" />
+        <circle cx="150" cy="150" r="120" fill="#f7e7c6" />
+        <path d="M35 150 C85 115, 215 115, 265 150" fill="none" stroke="#e1cfa6" strokeWidth="12" />
+        <path d="M60 185 C115 152, 185 152, 240 185" fill="none" stroke="#e1cfa6" strokeWidth="12" />
+        <circle cx="110" cy="115" r="24" fill="#fff" opacity="0.55" />
+        <circle cx="120" cy="165" r="9" fill="#333" />
+        <circle cx="180" cy="165" r="9" fill="#333" />
+        <path d="M130 185 Q150 202 170 185" stroke="#333" strokeWidth="6" fill="none" strokeLinecap="round" />
       </svg>
-      <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-zinc-700 shadow">нажми</span>
+      <span className="pointer-events-none absolute -bottom-9 left-1/2 -translate-x-1/2
+                       rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-zinc-800 shadow">
+        нажми
+      </span>
     </button>
   );
 }
 
-// Floating +1 pellets on tap
-function useFloaters() {
-  const [floaters, setFloaters] = useState<Array<{ id: number; x: number; y: number; text: string }>>([]);
-  const idRef = useRef(0);
-  useEffect(() => {
-    const t = setInterval(() => {
-      setFloaters((f) => f.slice(-12)); // cap to last N to avoid overflow
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-  return {
-    floaters,
-    addFloater(x: number, y: number, text: string) {
-      const id = ++idRef.current;
-      setFloaters((f) => [...f, { id, x, y, text }]);
-      setTimeout(() => setFloaters((f) => f.filter((i) => i.id !== id)), 900);
-    },
-  };
-}
 
+// ---------------- App ----------------
 export default function App() {
-  // Telegram Mini App integration (optional)
+  // Telegram theme (если открыто в mini app)
   useEffect(() => {
     const w = window as any;
-    if (w?.Telegram?.WebApp) {
+    const wa = w?.Telegram?.WebApp;
+    if (wa) {
       try {
-        const wa = w.Telegram.WebApp;
         wa.ready();
         wa.expand();
-        // match theme a bit
         document.documentElement.style.setProperty("--tg-bg", wa.themeParams?.bg_color || "#0b1220");
       } catch {}
     }
@@ -99,136 +123,144 @@ export default function App() {
 
   const initial: SaveState = useMemo(
     () =>
-      loadState() || {
-        pelmeni: 0,
-        perTap: 1,
-        perSecond: 0,
-        totalTaps: 0,
-        createdAt: Date.now(),
-      },
+      loadState() || { pelmeni: 0, perTap: 1, perSecond: 0, totalTaps: 0, createdAt: Date.now() },
     []
   );
-
   const [state, setState] = useState<SaveState>(initial);
   const [tick, setTick] = useState(0);
-  const { floaters, addFloater } = useFloaters();
+  const [squish, setSquish] = useState(false);
 
-  // Save on change
-  useEffect(() => {
-    saveState(state);
-  }, [state]);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const { floaters, add } = useFloaters();
+  const { parts, burst } = useParticles();
 
-  // Passive income loop (60fps throttled per second)
+  // persist
+  useEffect(() => saveState(state), [state]);
+
+  // passive income
   useEffect(() => {
-    const t = setInterval(() => {
-      setTick((x) => x + 1);
-    }, 1000);
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
   }, []);
-
   useEffect(() => {
-    if (state.perSecond > 0) {
-      setState((s) => ({ ...s, pelmeni: s.pelmeni + s.perSecond }));
-    }
+    if (state.perSecond > 0) setState((s) => ({ ...s, pelmeni: s.pelmeni + s.perSecond }));
   }, [tick]);
 
-  // Handle tap
+  // tap
   const onTap = (e?: React.MouseEvent) => {
     const delta = state.perTap;
     setState((s) => ({ ...s, pelmeni: s.pelmeni + delta, totalTaps: s.totalTaps + 1 }));
-    // Floater at click position
-    if (e) {
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
-      addFloater(e.clientX - rect.left - rect.width / 2, e.clientY - rect.top - rect.height / 2, `+${delta}`);
+    setSquish(true);
+    setTimeout(() => setSquish(false), 160);
+
+    // floaters + particles around click
+    if (boardRef.current && e) {
+      const rect = boardRef.current.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
+      add(cx, cy, `+${delta}`);
+      burst(cx, cy, Math.min(14, 6 + Math.floor(delta / 2)));
     }
   };
 
-  // Simple shop items (optional, for engagement)
   const shop = [
-    { id: "tap2", title: "Сильнее нажимать", desc: "+1 за тап", cost: 50, apply: (s: SaveState) => ({ ...s, perTap: s.perTap + 1 }) },
-    { id: "tap5", title: "Лопатка пельменная", desc: "+5 за тап", cost: 250, apply: (s: SaveState) => ({ ...s, perTap: s.perTap + 5 }) },
-    { id: "auto1", title: "Вареник-робот", desc: "+1/сек", cost: 200, apply: (s: SaveState) => ({ ...s, perSecond: s.perSecond + 1 }) },
-    { id: "auto5", title: "Цех лепки", desc: "+5/сек", cost: 900, apply: (s: SaveState) => ({ ...s, perSecond: s.perSecond + 5 }) },
+    { id: "tap+1", title: "Сильнее нажимать", desc: "+1 за тап", cost: 50, apply: (s: SaveState) => ({ ...s, perTap: s.perTap + 1 }) },
+    { id: "tap+5", title: "Лопатка пельменная", desc: "+5 за тап", cost: 250, apply: (s: SaveState) => ({ ...s, perTap: s.perTap + 5 }) },
+    { id: "auto+1", title: "Вареник-робот", desc: "+1/сек", cost: 200, apply: (s: SaveState) => ({ ...s, perSecond: s.perSecond + 1 }) },
+    { id: "auto+5", title: "Цех лепки", desc: "+5/сек", cost: 900, apply: (s: SaveState) => ({ ...s, perSecond: s.perSecond + 5 }) },
   ];
+  const buy = (it: (typeof shop)[number]) => {
+    if (state.pelmeni < it.cost) return;
+    setState((s) => ({ ...it.apply({ ...s, pelmeni: s.pelmeni - it.cost }) }));
+  };
 
-  function buy(item: (typeof shop)[number]) {
-    if (state.pelmeni < item.cost) return;
-    setState((s) => ({ ...item.apply({ ...s, pelmeni: s.pelmeni - item.cost }) }));
-  }
-
-  function reset() {
+  const reset = () => {
     if (!confirm("Сбросить прогресс?")) return;
     const fresh: SaveState = { pelmeni: 0, perTap: 1, perSecond: 0, totalTaps: 0, createdAt: Date.now() };
     setState(fresh);
     saveState(fresh);
-  }
+  };
 
   return (
     <div className="min-h-screen bg-[var(--tg-bg,#0b1220)] text-white">
-      <div className="mx-auto max-w-3xl px-4 py-6">
+      {/* красивый фон */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -inset-40 bg-gradient-to-br from-[#0b1220] via-[#131b39] to-[#1f2a4f] animate-grad-slow" />
+        <div className="noise-mask pointer-events-none absolute inset-0 opacity-[.08]" />
+        <div className="grid-glow pointer-events-none absolute inset-0" />
+      </div>
+
+      <div className="safe mx-auto max-w-4xl px-4 py-6">
         <header className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">🥟 Pelmeni Tapper</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">🥟 Pelmeni Tapper</h1>
           <div className="flex items-center gap-2 text-xs opacity-80">
-            <button onClick={reset} className="rounded-xl bg-white/10 px-3 py-1 hover:bg-white/15">
-              Сброс
-            </button>
+            <button onClick={reset} className="rounded-xl bg-white/10 px-3 py-1 hover:bg-white/15">Сброс</button>
             <a
               href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                navigator.clipboard.writeText(JSON.stringify(state));
-                alert("Сейв скопирован в буфер обмена");
-              }}
+              onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(JSON.stringify(state)); alert("Сейв скопирован"); }}
               className="rounded-xl bg-white/10 px-3 py-1 hover:bg-white/15"
-            >
-              Экспорт
-            </a>
+            >Экспорт</a>
           </div>
         </header>
 
-        <main className="grid gap-6 md:grid-cols-[1.2fr_0.8fr]">
+        <main className="grid gap-6 md:grid-cols-[1.15fr_0.85fr]">
+          {/* поле игры */}
           <section className="relative rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-            {/* Score */}
-            <div className="mb-4 grid grid-cols-3 gap-3 text-center">
+            {/* счетчики */}
+            <div className="mb-4 grid grid-cols-3 gap-3 text-center text-balance">
               <div className="rounded-2xl bg-white/10 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-white/70">Пельмени</div>
-                <div className="text-3xl font-extrabold tabular-nums">{fmt(state.pelmeni)}</div>
+                <div className="text-3xl md:text-4xl font-extrabold tabular-nums">{fmt(state.pelmeni)}</div>
               </div>
               <div className="rounded-2xl bg-white/10 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-white/70">За тап</div>
-                <div className="text-3xl font-extrabold tabular-nums">{fmt(state.perTap)}</div>
+                <div className="text-3xl md:text-4xl font-extrabold tabular-nums">{fmt(state.perTap)}</div>
               </div>
               <div className="rounded-2xl bg-white/10 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-white/70">В сек.</div>
-                <div className="text-3xl font-extrabold tabular-nums">{fmt(state.perSecond)}</div>
+                <div className="text-3xl md:text-4xl font-extrabold tabular-nums">{fmt(state.perSecond)}</div>
               </div>
             </div>
 
-            {/* Big Pelmeni */}
-            <div className="relative">
+            {/* арена */}
+            <div className="relative" ref={boardRef}>
               <div onClick={onTap} className="mx-auto w-fit">
-                <BigPelmeni onTap={onTap} />
+               <BigPelmeni onTap={onTap} squish={squish} size={380} />
               </div>
 
-              {/* Floaters */}
+              {/* +N */}
               <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                 {floaters.map((f) => (
+                  <span key={f.id} className="absolute floater select-none text-lg font-bold text-emerald-300"
+                        style={{ transform: `translate(${f.x}px, ${f.y}px)` }}>{f.text}</span>
+                ))}
+              </div>
+
+              {/* мини-пельмени */}
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                {parts.map((p) => (
                   <span
-                    key={f.id}
-                    className="absolute animate-[rise_0.9s_ease-out] select-none text-base font-bold text-emerald-300 drop-shadow"
-                    style={{ transform: `translate(${f.x}px, ${f.y}px)` }}
+                    key={p.id}
+                    className="pelmeni-particle text-xl"
+                    style={{
+                      transform: `translate(${p.x}px, ${p.y}px) rotate(${p.rot}deg)`,
+                      // конечная траектория:
+                      ["--tx" as any]: `${p.tx}px`,
+                      ["--ty" as any]: `${p.ty}px`,
+                    }}
                   >
-                    {f.text}
+                    🥟
                   </span>
                 ))}
               </div>
             </div>
 
-            {/* Tap hint */}
-            <p className="mt-6 text-center text-sm text-white/70">Кликай по большому пельменю, чтобы лепить маленькие 🥟</p>
+            <p className="mt-6 text-center text-sm text-white/70">
+              Кликай по большому пельменю — запускай салют из мини-пельменей 🥟
+            </p>
           </section>
 
-          {/* Shop */}
+          {/* магазин */}
           <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
             <h2 className="mb-3 text-lg font-semibold">Магазин</h2>
             <div className="grid gap-3">
@@ -252,14 +284,9 @@ export default function App() {
 
         <footer className="mt-6 flex items-center justify-between text-xs text-white/60">
           <div>Всего нажатий: {fmt(state.totalTaps)}</div>
-          <div>v0.1 · сохранение локально</div>
+          <div>v0.2 · локальное сохранение</div>
         </footer>
       </div>
-
-      {/* keyframes for floaters */}
-      <style>{`
-        @keyframes rise { from { opacity: 1; transform: translate(var(--x,0), var(--y,0)) translateY(0); } to { opacity: 0; transform: translate(var(--x,0), var(--y,0)) translateY(-60px); } }
-      `}</style>
     </div>
   );
 }
